@@ -10,14 +10,15 @@ name: Java CI with Maven
 
 on:
   push:
-    branches: [ "main","develop" ]
-  pull_request:
-    branches: [ "main","develop" ]
+    branches: [ "main" ]
 
 jobs:
-  build:
-
+  deploy:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    env:
+      SERVICE_NAME: eureka #← JAR 이름 (finalName)
 
     steps:
       - uses: actions/checkout@v3
@@ -27,15 +28,29 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
-      - name: Build with Maven
-        run: mvn -B package --file pom.xml
+      - name: 🛠️ Build with Maven
+        run: mvn -B clean package -DskipTests
 
-      # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
-      #- name: Update dependency graph
-      #  uses: advanced-security/maven-dependency-submission-action@571e99aab1055c2e71a1e2309b9691de18d6b7d6
+      - name: 💾 백업 기존 JAR on Remote
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_IP }}
+          username: ${{ secrets.SSH_ID }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            SERVICE_NAME=${{ env.SERVICE_NAME }}
+            JAR_PATH=~/target/${SERVICE_NAME}.jar
+            BACKUP_PATH=~/backup_jars/${SERVICE_NAME}.jar.bak
+            mkdir -p ~/backup_jars
+            if [ -f "$JAR_PATH" ]; then
+              cp "$JAR_PATH" "$BACKUP_PATH"
+              echo "✅ 백업 완료: $BACKUP_PATH"
+            else
+              echo "⚠️ 백업 생략: $JAR_PATH 없음"
+            fi
 
-      - name: check build success
-        if: success()
+      - name: 🚚 Upload JAR to Remote
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_IP }}
@@ -46,11 +61,11 @@ jobs:
           target: "~/"
           rm: false
 
-      - name: execute shell script
+      - name: 🚀 Execute startup.sh on Remote
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_IP }}
           username: ${{ secrets.SSH_ID }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          script: "chmod 755 ~/startup.sh && ~/startup.sh"
+          script: "~/eurekastartup.sh ${{ env.SERVICE_NAME }}"

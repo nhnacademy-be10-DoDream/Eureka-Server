@@ -2,5 +2,5 @@ eureka:
   client:
     register-with-eureka: false
     fetch-registry: false
-  instance:
-    hostname: dodream.shop
+    service-url:
+      defaultZone: ""
