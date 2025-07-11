@@ -17,3 +17,8 @@ management:
   endpoint:
     health:
       show-details: always
+logging:
+  level:
+    com.netflix.eureka: DEBUG
+    com.netflix.discovery: DEBUG
+    com.netflix.eureka.registry.AbstractInstanceRegistry: DEBUG
